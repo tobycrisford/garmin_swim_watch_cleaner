@@ -10,6 +10,7 @@ import numpy as np
 class Length:
     
     def __init__(self, start_time, finish_time, next_length, start_recorded, end_recorded, length_label, all_recorded, index_start, index_stop):
+        #index_start/stop gives the lowest, highest index of all_recorded in [...) (if stop < start this indicates no values)
         self.start_time = start_time
         self.finish_time = finish_time
         self.duration = finish_time - start_time
@@ -69,7 +70,77 @@ class Length:
         
         return s_prob_factors, potential_mean, potential_meansquare, potential_S
     
+    def add_missing(self, potential_missed, new_start_index, new_stop_index):
+        prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
+        prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
+                
+        s_prob_factors, potential_mean, potential_meansquare, potential_S = self.s_effect_of_new_add(potential_missed)
+
+        prob_factor *= s_prob_factors.prod(axis=1)
+                
+        prob_factor *= (1-(1/(2.0*self.global_state['n'])))*np.sqrt(1/(1+(1/self.global_state['n'])))
+                
+        prob_stick = 1 / (1 + np.sum(prob_factor))
+        rand_number = np.random.rand()
+        if rand_number > prob_stick:
+            if rand_number < 1 - (prob_stick * prob_factor[1]):
+                new_label = 0
+            else:
+                new_label = 1
+            self.next_length = Length(potential_missed, self.finish_time,
+                                      self.next_length, False, self.end_recorded,
+                                      new_label, self.all_recorded, new_start_index, self.index_stop)
+            self.finish_time = potential_missed
+            self.duration = self.finish_time - self.start_time
+            self.end_recorded = False
+            self.index_stop = new_stop_index #If < self.index_start this indicates no recorded points in [)
+                    
+            #Finally need to increment global state
+            self.global_state['missed'] += 1
+            self.global_state['n'][new_label] += 1
+            self.global_state['mean'] = potential_mean[new_label,:]
+            self.global_state['meansquare'] = potential_meansquare[new_label,:]
+            self.global_state['S'] = potential_S[new_label,:]
+                    
+            return self.next_length
+        
+        return None
+    
     def random_hop(self):
+        
+        #Should we change the current length label?
+        prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
+        potential_mean = np.copy(self.global_state['mean'])
+        potential_meansquare = np.copy(self.global_state['meansquare'])
+        n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
+        potential_mean[self.length_label] -= self.duration / self.global_state['n'][self.length_label]
+        potential_mean[self.length_label] *= n_factor
+        potential_meansquare[self.length_label] -= (self.duration**2) / self.global_state['n'][self.length_label]
+        potential_meansquare[self.length_label] *= n_factor
+        potential_mean[1-self.length_label] = ((potential_mean[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)) / (self.global_state['n'][1-self.length_label] + 1)
+        potential_meansquare[1-self.length_label] = ((potential_meansquare[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)**2) / (self.global_state['n'][1-self.length_label] + 1)
+        potential_n = np.copy(self.global_state['n'])
+        potential_n[self.length_label] -= 1
+        potential_n[1-self.length_label] += 1
+        potential_S = potential_n * (potential_meansquare - potential_mean**2)
+                
+        s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
+        s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
+        
+        prob_factor *= np.prod(s_prob_factors)
+        
+        prob_factor *= #n effect...
+        
+        prob_stick = 1 / (1 + prob_factor)
+        rand_number = np.random.rand()
+        if rand_number > prob_stick:
+            self.length_label = 1 - self.length_label
+            self.global_state['n'] = potential_n
+            self.global_state['mean'] = potential_mean
+            self.global_state['meansquare'] = potential_meansquare
+            self.global_state['S'] = potential_S
+            return self
+        
         
         for i in range(self.index_start, self.index_stop + 1):
             
@@ -80,42 +151,17 @@ class Length:
                 lb = self.all_recorded[i-1]
             if self.all_recorded[i] > lb:
                 potential_missed = np.random.uniform(lb, self.all_recorded[i])
-                prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
-                prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
-                
-                s_prob_factors, potential_mean, potential_meansquare, potential_S = self.s_effect_of_new_add(potential_missed)
-
-                prob_factor *= s_prob_factors.prod(axis=1)
-                
-                prob_factor *= (1-(1/(2.0*self.global_state['n'])))*np.sqrt(1/(1+(1/self.global_state['n'])))
-                
-                prob_stick = 1 / (1 + np.sum(prob_factor))
-                rand_number = np.random.rand()
-                if rand_number > prob_stick:
-                    if rand_number < 1 - (prob_stick * prob_factor[1]):
-                        new_label = 0
-                    else:
-                        new_label = 1
-                    self.next_length = Length(potential_missed, self.finish_time,
-                                              self.next_length, False, self.end_recorded,
-                                              new_label, self.all_recorded, i, self.index_stop)
-                    self.finish_time = potential_missed
-                    self.duration = self.finish_time - self.start_time
-                    self.end_recorded = False
-                    self.index_stop = i - 1 #If < self.index_start this indicates no recorded points in [)
-                    
-                    #Finally need to increment global state
-                    self.global_state['missed'] += 1
-                    self.global_state['n'][new_label] += 1
-                    self.global_state['mean'] = potential_mean[new_label,:]
-                    self.global_state['meansquare'] = potential_meansquare[new_label,:]
-                    self.global_state['S'] = potential_S[new_label,:]
-                    
-                    return self.next_length
+                add_missing_test = self.add_missing(potential_missed, i, i - 1)
+                if not (add_missing_test is None):
+                    return add_missing_test
                 
                 
                 #Should we add back in an extra recorded?
                 prob_factor = (self.global_state['recorded'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
+                if self.global_state['extra'] == 1:
+                    prob_factor *= 2
+                else:
+                    prob_factor *= self.global_state['extra'] / (self.global_state['extra'] - 1)
                 prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
                 
                 s_prob_factors, potential_mean, potential_meansquare, potential_S = self.s_effect_of_new_add(self.all_recorded[i])
@@ -147,3 +193,26 @@ class Length:
                     self.global_state['S'] = potential_S[new_label,:]
                     
                     return self.next_length
+                
+                
+        #Was a length transition missed near the end?
+        if self.index_stop < self.index_start:
+            potential_missed = np.random.uniform(self.start_time, self.finish_time)
+        else:
+            potential_missed = np.random.uniform(self.all_recorded[self.index_stop], self.finish_time)
+        add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop)
+        if not (add_missing_test is None):
+            return add_missing_test
+        
+        #Should we merge with the next length?
+        if not (self.next_length is None):
+            if self.end_recorded:
+                prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['recorded'])
+                if self.global_state['extra'] == 0:
+                    prob_factor *= 0.5
+                else:
+                    prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
+            else:
+                prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['missed'])
+            
+              #Add n1/n2 effect, then S/N effect        
