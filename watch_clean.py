@@ -55,7 +55,7 @@ class Length:
     def s_effect_of_new_add(self, cut_time):
         
         potential_mean = np.array([self.global_state['mean'], self.global_state['mean']])
-        potential_meansquare = np.array(self.global_state['meansquare'], self.global_state['meansquare'])
+        potential_meansquare = np.array([self.global_state['meansquare'], self.global_state['meansquare']])
         potential_mean[:, self.length_label] -= (self.finish_time - cut_time) / self.global_state['n'][self.length_label]
         potential_meansquare[:, self.length_label] -= (self.duration**2 - (cut_time - self.start_time)**2) / self.global_state['n'][self.length_label]
         for ind in (0,1):
@@ -90,6 +90,7 @@ class Length:
             self.next_length = Length(potential_missed, self.finish_time,
                                       self.next_length, False, self.end_recorded,
                                       new_label, self.all_recorded, new_start_index, self.index_stop)
+            self.next_length.global_state = self.global_state
             self.finish_time = potential_missed
             self.duration = self.finish_time - self.start_time
             self.end_recorded = False
@@ -181,6 +182,7 @@ class Length:
                     self.next_length = Length(self.all_recorded[i], self.finish_time,
                                               self.next_length, True, self.end_recorded,
                                               new_label, self.all_recorded, i, self.index_stop)
+                    self.next_length.global_state = self.global_state
                     self.finish_time = self.all_recorded[i]
                     self.duration = self.finish_time - self.start_time
                     self.end_recorded = True
@@ -250,7 +252,7 @@ class Length:
                     self.global_state['extra'] += 1
                 self.global_state['n'][self.next_length.length_label] -= 1
                 self.global_state['mean'] = potential_mean
-                self.global_state['mensquare'] = potential_meansquare
+                self.global_state['meansquare'] = potential_meansquare
                 self.global_state['S'] = potential_S
                 
                 self.finish_time = self.next_length.finish_time
@@ -266,5 +268,12 @@ class Length:
                 return self
             
         return self.next_length
-                
+    
+    
+    #For debugging
+    def print_all(self):
+        
+        print(self.start_time, self.finish_time)
+        if not (self.next_length is None):
+            self.next_length.print_all()
                 
