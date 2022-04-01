@@ -129,7 +129,8 @@ class Length:
         
         prob_factor *= np.prod(s_prob_factors)
         
-        prob_factor *= #n effect...
+        prob_factor *= (1-(1/(2.0*self.global_state['n'][1-self.length_label])))*np.sqrt(1/(1+(1/self.global_state['n'][1-self.length_label])))
+        prob_factor *= ((self.global_state['n'][self.length_label] - 1) / (self.global_state['n'][self.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1))
         
         prob_stick = 1 / (1 + prob_factor)
         rand_number = np.random.rand()
@@ -215,4 +216,55 @@ class Length:
             else:
                 prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['missed'])
             
-              #Add n1/n2 effect, then S/N effect        
+            prob_factor *= (np.sum(self.global_state['n']) + 1) / self.global_state['n'][self.next_length.length_label]
+            
+            potential_mean = np.copy(self.global_state['mean'])
+            potential_meansquare = np.copy(self.global_state['meansquare'])
+            
+            potential_mean[self.length_label] +=  (self.next_length.duration) / (self.global_state['n'][self.length_label])
+            potential_meansquare[self.length_label] += (self.next_length.duration*(self.next_length.duration + 2*self.duration)) / (self.global_state['n'][self.length_label])
+            
+            n_factor = self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1)
+            potential_mean[self.next_length.length_label] -= self.next_length.duration / self.global_state['n'][self.next_length.length_label]
+            potential_mean[self.next_length.length_label] *= n_factor
+            potential_meansquare[self.next_length.length_label] -= (self.next_length.duration**2) / self.global_state['n'][self.next_length.length_label]
+            potential_meansquare[self.next_length.length_label] *= n_factor
+
+            potential_n = np.copy(self.global_state['n'])
+            potential_n[self.next_length.length_label] -= 1
+            
+            potential_S = potential_n * (potential_meansquare - potential_mean**2)
+                    
+            s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
+            s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
+            
+            prob_factor *= np.prod(s_prob_factors)
+            
+            prob_factor *= ((self.global_state['n'][self.next_length.length_label] - 1) / (self.global_state['n'][self.next_length.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1))
+            
+            prob_stick = 1 / (1 + np.sum(prob_factor))
+            rand_number = np.random.rand()
+            if rand_number > prob_stick:
+                if self.end_recorded:
+                    self.global_state['recorded'] -= 1
+                    self.global_state['extra'] += 1
+                self.global_state['n'][self.next_length.length_label] -= 1
+                self.global_state['mean'] = potential_mean
+                self.global_state['mensquare'] = potential_meansquare
+                self.global_state['S'] = potential_S
+                
+                self.finish_time = self.next_length.finish_time
+                self.duration = self.finish_time - self.start_time
+                self.end_recorded = self.next_length.end_recorded
+                if self.index_stop < self.index_start:
+                    self.index_start = self.next_length.index_start
+                    self.index_stop = self.next_length.index_stop
+                else:
+                    self.index_stop = self.next_length.index_stop
+                self.next_length = self.next_length.next_length
+                
+                return self
+            
+        return self.next_length
+                
+                
