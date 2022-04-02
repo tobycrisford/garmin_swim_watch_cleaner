@@ -82,7 +82,9 @@ class Length:
 
         prob_factor *= s_prob_factors.prod(axis=1)
                 
-        prob_factor *= (1-(1/(2.0*self.global_state['n'])))*np.sqrt(1/(1+(1/self.global_state['n'])))
+        regularized_n = np.copy(self.global_state['n'])
+        regularized_n[regularized_n == 0] = 1
+        prob_factor *= (1-(1/(2.0*regularized_n)))*np.sqrt(1/(1+(1/regularized_n)))
                 
         prob_stick = 1 / (1 + np.sum(prob_factor))
         rand_number = np.random.rand()
@@ -146,8 +148,10 @@ class Length:
         
         prob_factor *= np.prod(s_prob_factors)
         
-        prob_factor *= (1-(1/(2.0*self.global_state['n'][1-self.length_label])))*np.sqrt(1/(1+(1/self.global_state['n'][1-self.length_label])))
-        prob_factor *= ((self.global_state['n'][self.length_label] - 1) / (self.global_state['n'][self.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1))
+        if self.global_state['n'][1-self.length_label] > 0:
+            prob_factor *= (1-(1/(2.0*self.global_state['n'][1-self.length_label])))*np.sqrt(1/(1+(1/self.global_state['n'][1-self.length_label])))
+        if self.global_state['n'][self.length_label] > 1:
+            prob_factor *= ((self.global_state['n'][self.length_label] - 1) / (self.global_state['n'][self.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1))
         
         prob_stick = 1 / (1 + prob_factor)
         rand_number = np.random.rand()
@@ -186,7 +190,9 @@ class Length:
                 
                 prob_factor *= s_prob_factors.prod(axis=1)
                 
-                prob_factor *= (1-(1/(2.0*self.global_state['n'])))*np.sqrt(1/(1+(1/self.global_state['n'])))
+                regularized_n = np.copy(self.global_state['n'])
+                regularized_n[regularized_n == 0] = 1
+                prob_factor *= (1-(1/(2.0*regularized_n)))*np.sqrt(1/(1+(1/regularized_n)))
                 
                 prob_stick = 1 / (1 + np.sum(prob_factor))
                 rand_number = np.random.rand()
@@ -261,7 +267,8 @@ class Length:
             
             prob_factor *= np.prod(s_prob_factors)
             
-            prob_factor *= ((self.global_state['n'][self.next_length.length_label] - 1) / (self.global_state['n'][self.next_length.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1))
+            if self.global_state['n'][self.next_length.length_label] > 1:
+                prob_factor *= ((self.global_state['n'][self.next_length.length_label] - 1) / (self.global_state['n'][self.next_length.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1))
             
             prob_stick = 1 / (1 + np.sum(prob_factor))
             rand_number = np.random.rand()
