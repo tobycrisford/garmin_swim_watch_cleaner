@@ -45,7 +45,8 @@ class Length:
         if not (self.next_length is None):
             global_state['recorded'] += self.end_recorded
         global_state['n'][self.length_label] += 1
-        global_state['extra'] += (self.index_stop - self.index_start) + 1 - self.start_recorded
+        if self.index_stop >= self.index_start:
+            global_state['extra'] += (self.index_stop - self.index_start) + 1 - self.start_recorded
         
         global_state['mean'][self.length_label] = (global_state['mean'][self.length_label]*(global_state['n'][self.length_label]-1) + self.duration) / global_state['n'][self.length_label]
         global_state['meansquare'][self.length_label] = (global_state['meansquare'][self.length_label]*(global_state['n'][self.length_label]-1) + self.duration**2) / global_state['n'][self.length_label]
@@ -348,3 +349,22 @@ def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
             lengths.run_increment()
             
     return checkpoints
+
+def global_state_testing(lengths, n):
+    
+    for i in tqdm(range(n)):
+        inc = lengths
+        inc = inc.random_hop()
+        gs = lengths.global_state.copy()
+        lengths.calculate_global_state()
+        for j in gs:
+            if isinstance(lengths.global_state[j], np.ndarray):
+                if np.any(gs[j] != lengths.global_state[j]):
+                    print(gs[j], lengths.global_state[j])
+                    raise Exception("Global state inconsistency: " + j)
+            elif gs[j] != lengths.global_state[j]:
+                print(gs[j], lengths.global_state[j])
+                raise Exception("Global state inconsistency: " + j)
+        if inc is None:
+            inc = lengths
+                
