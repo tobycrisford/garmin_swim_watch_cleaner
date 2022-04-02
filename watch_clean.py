@@ -279,4 +279,25 @@ class Length:
         print(self.start_time, self.finish_time)
         if not (self.next_length is None):
             self.next_length.print_all()
+            
+    
+    #For testing
+    @classmethod
+    def init_random_state(cls, n, a_length, b_length, extra_mean, miss_prob):
+        t = [0]
+        for i in range(1,n):
+            if np.random.rand() > 0.5:
+                t.append(t[i-1] + np.random.normal(a_length, 1.0))
+            else:
+                t.append(t[i-1] + np.random.normal(b_length, 1.0))
+        
+        t += list(np.random.uniform(t[0], t[-1], size = np.random.poisson(extra_mean)))
+        
+        for time in t:
+            if np.random.rand() < miss_prob:
+                t.remove(time)
+                
+        t.sort()
+        
+        return Length.create_from_recorded(t, 0)
                 
