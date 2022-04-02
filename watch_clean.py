@@ -337,6 +337,7 @@ class Length:
     def run_increment(self):
         inc = self.random_hop()
         while not (inc is None):
+            assert inc.global_state['missed'] + inc.global_state['recorded'] == np.sum(inc.global_state['n']) - 1
             inc = inc.random_hop()
 
 def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
@@ -356,6 +357,7 @@ def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
 def global_state_testing(lengths, n):
     
     inc = lengths
+    times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
     for i in tqdm(range(n)):
         inc = inc.random_hop()
@@ -369,6 +371,8 @@ def global_state_testing(lengths, n):
             elif gs[j] != lengths.global_state[j]:
                 print(gs[j], lengths.global_state[j])
                 raise Exception("Global state inconsistency: " + j)
+        assert gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
+        assert gs['extra'] + gs['recorded'] == times_length
         if inc is None:
             inc = lengths
                 
