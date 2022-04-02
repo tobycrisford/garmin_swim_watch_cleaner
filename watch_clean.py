@@ -66,7 +66,7 @@ class Length:
             potential_mean[ind,ind] = ((potential_mean[ind,ind] * self.global_state['n'][ind]) + (self.finish_time - cut_time)) / (self.global_state['n'][ind] + 1)
             potential_meansquare[ind,ind] = ((potential_meansquare[ind,ind] * self.global_state['n'][ind]) + (self.finish_time - cut_time)**2) / (self.global_state['n'][ind] + 1)
         potential_n = self.global_state['n'] + np.identity(2)
-        potential_S = potential_n * (potential_meansquare - potential_mean**2)
+        potential_S = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
                 
         #prob_factor *= potential_S**(0.5*(1-potential_n)) / (self.global_state['S']**(0.5*(1-self.global_state['n'])))
         s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
@@ -111,6 +111,15 @@ class Length:
         
         return None
     
+    def compute_potential_S(self, potential_mean, potential_meansquare, potential_n):
+        
+        potential_S = potential_n * (potential_meansquare - potential_mean**2)
+        
+        potential_S[potential_S <= 0] = 1 #To regularize
+        
+        return potential_S
+        
+    
     def random_hop(self):
         
         #Should we change the current length label?
@@ -127,7 +136,7 @@ class Length:
         potential_n = np.copy(self.global_state['n'])
         potential_n[self.length_label] -= 1
         potential_n[1-self.length_label] += 1
-        potential_S = potential_n * (potential_meansquare - potential_mean**2)
+        potential_S = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
                 
         s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
         s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
@@ -165,7 +174,7 @@ class Length:
                 #Should we add back in an extra recorded?
                 prob_factor = (self.global_state['recorded'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
                 if self.global_state['extra'] == 1:
-                    prob_factor *= 2
+                    prob_factor *= 2 #To regularize
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] - 1)
                 prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
@@ -239,7 +248,7 @@ class Length:
             potential_n = np.copy(self.global_state['n'])
             potential_n[self.next_length.length_label] -= 1
             
-            potential_S = potential_n * (potential_meansquare - potential_mean**2)
+            potential_S = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
                     
             s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
             s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
@@ -324,3 +333,5 @@ def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
         checkpoints.append(lengths.global_state.copy())
         for j in range(checkpoint_size):
             lengths.run_increment()
+            
+    return checkpoints
