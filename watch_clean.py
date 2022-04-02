@@ -126,7 +126,10 @@ class Length:
         prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
         potential_mean = np.copy(self.global_state['mean'])
         potential_meansquare = np.copy(self.global_state['meansquare'])
-        n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
+        if self.global_state['n'][self.length_label] > 1:
+            n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
+        else:
+            n_factor = 1
         potential_mean[self.length_label] -= self.duration / self.global_state['n'][self.length_label]
         potential_mean[self.length_label] *= n_factor
         potential_meansquare[self.length_label] -= (self.duration**2) / self.global_state['n'][self.length_label]
@@ -239,7 +242,10 @@ class Length:
             potential_mean[self.length_label] +=  (self.next_length.duration) / (self.global_state['n'][self.length_label])
             potential_meansquare[self.length_label] += (self.next_length.duration*(self.next_length.duration + 2*self.duration)) / (self.global_state['n'][self.length_label])
             
-            n_factor = self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1)
+            if self.global_state['n'][self.next_length.length_label] > 1:
+                n_factor = self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1)
+            else:
+                n_factor = 1
             potential_mean[self.next_length.length_label] -= self.next_length.duration / self.global_state['n'][self.next_length.length_label]
             potential_mean[self.next_length.length_label] *= n_factor
             potential_meansquare[self.next_length.length_label] -= (self.next_length.duration**2) / self.global_state['n'][self.next_length.length_label]
@@ -286,7 +292,7 @@ class Length:
     #For debugging
     def print_all(self):
         
-        print(self.start_time, self.start_recorded, self.finish_time, self.end_recorded)
+        print(self.length_label, self.start_time, self.start_recorded, self.finish_time, self.end_recorded)
         for i in range(self.index_start, self.index_stop+1):
             if self.all_recorded[i] > self.start_time:
                 print('Extra', self.all_recorded[i])
