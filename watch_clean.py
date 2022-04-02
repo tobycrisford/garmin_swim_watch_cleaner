@@ -6,6 +6,7 @@ Created on Sat Mar 26 16:34:56 2022
 """
 
 import numpy as np
+from tqdm import tqdm
 
 class Length:
     
@@ -303,4 +304,23 @@ class Length:
         t.sort()
         
         return Length.create_from_recorded(t, 0)
-                
+    
+    
+
+
+    def run_increment(self):
+        inc = self.random_hop()
+        while not (inc is None):
+            inc = inc.random_hop()
+
+def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
+    
+    for i in tqdm(range(n_start)):
+        lengths.run_increment()
+        
+    checkpoints = []
+    
+    for i in tqdm(range(n_checkpoints)):
+        checkpoints.append(lengths.global_state.copy())
+        for j in range(checkpoint_size):
+            lengths.run_increment()
