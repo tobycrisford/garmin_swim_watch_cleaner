@@ -33,7 +33,10 @@ class Length:
         return Length(all_recorded[start_index], all_recorded[start_index + 1], next_length, True, True, length_label, all_recorded, start_index, start_index)
               
     #This function is expensive, run only once at start, then each length modifies global state in place as required
-    def calculate_global_state(self, global_state={'missed': 0, 'recorded': 0, 'n': np.array([0,0]), 'extra': 0, 'mean': np.array([0.0,0.0]), 'meansquare': np.array([0.0,0.0])}):
+    def calculate_global_state(self, global_state=None):
+        
+        if global_state is None:
+            global_state = {'missed': 0, 'recorded': 0, 'n': np.array([0,0]), 'extra': 0, 'mean': np.array([0.0,0.0]), 'meansquare': np.array([0.0,0.0])}
         
         global_state['missed'] += (not self.start_recorded)
         if self.next_length is None:
