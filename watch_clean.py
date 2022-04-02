@@ -278,6 +278,8 @@ class Length:
                 if self.end_recorded:
                     self.global_state['recorded'] -= 1
                     self.global_state['extra'] += 1
+                else:
+                    self.global_state['missed'] -= 1
                 self.global_state['n'][self.next_length.length_label] -= 1
                 self.global_state['mean'] = potential_mean
                 self.global_state['meansquare'] = potential_meansquare
