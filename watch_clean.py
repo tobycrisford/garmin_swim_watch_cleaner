@@ -276,7 +276,10 @@ class Length:
     #For debugging
     def print_all(self):
         
-        print(self.start_time, self.finish_time)
+        print(self.start_time, self.start_recorded, self.finish_time, self.end_recorded)
+        for i in range(self.index_start, self.index_stop+1):
+            if self.all_recorded[i] > self.start_time:
+                print('Extra', self.all_recorded[i])
         if not (self.next_length is None):
             self.next_length.print_all()
             
@@ -285,7 +288,7 @@ class Length:
     @classmethod
     def init_random_state(cls, n, a_length, b_length, extra_mean, miss_prob):
         t = [0]
-        for i in range(1,n):
+        for i in range(1,n+1):
             if np.random.rand() > 0.5:
                 t.append(t[i-1] + np.random.normal(a_length, 1.0))
             else:
