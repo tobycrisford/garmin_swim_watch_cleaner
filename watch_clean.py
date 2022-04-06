@@ -204,6 +204,8 @@ class Length:
                 regularized_n[regularized_n == 0] = 1
                 prob_factor *= ((regularized_n) / (regularized_n+1)) * (1/np.sqrt(2*np.pi*np.e))
                 
+                prob_factor *= self.all_recorded[-1] - self.all_recorded[0]
+                
                 prob_stick = 1 / (1 + np.sum(prob_factor))
                 rand_number = np.random.rand()
                 if rand_number > prob_stick:
@@ -249,6 +251,7 @@ class Length:
                     prob_factor *= 0.5
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
+                prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
             else:
                 prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['missed'])
             
