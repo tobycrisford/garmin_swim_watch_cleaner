@@ -52,6 +52,8 @@ class Length:
         global_state['meansquare'][self.length_label] = (global_state['meansquare'][self.length_label]*(global_state['n'][self.length_label]-1) + self.duration**2) / global_state['n'][self.length_label]
         global_state['S'] = global_state['n'] * (global_state['meansquare'] - global_state['mean']**2)
         global_state['S'][global_state['S'] <= 1] = 1 #regularize
+        global_state['var'] = global_state['meansquare'] - global_state['mean']**2
+        global_state['var'][global_state['var'] <= 10**(-5)] = 10**(-5)
         
         self.global_state = global_state
         if not (self.next_length is None):
@@ -68,25 +70,25 @@ class Length:
             potential_mean[ind,ind] = ((potential_mean[ind,ind] * self.global_state['n'][ind]) + (self.finish_time - cut_time)) / (self.global_state['n'][ind] + 1)
             potential_meansquare[ind,ind] = ((potential_meansquare[ind,ind] * self.global_state['n'][ind]) + (self.finish_time - cut_time)**2) / (self.global_state['n'][ind] + 1)
         potential_n = self.global_state['n'] + np.identity(2)
-        potential_S = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
+        potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
                 
-        #prob_factor *= potential_S**(0.5*(1-potential_n)) / (self.global_state['S']**(0.5*(1-self.global_state['n'])))
-        s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
-        s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
+        s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
+        s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
         
-        return s_prob_factors, potential_mean, potential_meansquare, potential_S
+        return s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var
     
-    def add_missing(self, potential_missed, new_start_index, new_stop_index):
+    def add_missing(self, potential_missed, new_start_index, new_stop_index, time_factor):
         prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
         prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
                 
-        s_prob_factors, potential_mean, potential_meansquare, potential_S = self.s_effect_of_new_add(potential_missed)
+        s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var = self.s_effect_of_new_add(potential_missed)
 
         prob_factor *= s_prob_factors.prod(axis=1)
                 
         regularized_n = np.copy(self.global_state['n'])
         regularized_n[regularized_n == 0] = 1
-        prob_factor *= (1-(1/(2.0*regularized_n)))*np.sqrt(1/(1+(1/regularized_n)))
+        prob_factor *= (regularized_n / (1 + regularized_n)) * (1 / np.sqrt(2*np.pi*np.e))
+        prob_factor *= time_factor
                 
         prob_stick = 1 / (1 + np.sum(prob_factor))
         rand_number = np.random.rand()
@@ -110,6 +112,7 @@ class Length:
             self.global_state['mean'] = potential_mean[new_label,:]
             self.global_state['meansquare'] = potential_meansquare[new_label,:]
             self.global_state['S'] = potential_S[new_label,:]
+            self.global_state['var'] = potential_var[new_label,:]
                     
             return self.next_length
         
@@ -121,7 +124,11 @@ class Length:
         
         potential_S[potential_S <= 1] = 1 #To regularize
         
-        return potential_S
+        potential_var = potential_meansquare - potential_mean**2
+        
+        potential_var[potential_var <= 10**-5] = 10**(-5) #To regularize
+        
+        return potential_S, potential_var
         
     
     def random_hop(self, min_lengths):
@@ -143,17 +150,17 @@ class Length:
         potential_n = np.copy(self.global_state['n'])
         potential_n[self.length_label] -= 1
         potential_n[1-self.length_label] += 1
-        potential_S = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
+        potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
                 
-        s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
-        s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
+        s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
+        s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
         
         prob_factor *= np.prod(s_prob_factors)
         
         if self.global_state['n'][1-self.length_label] > 0:
-            prob_factor *= (1-(1/(2.0*self.global_state['n'][1-self.length_label])))*np.sqrt(1/(1+(1/self.global_state['n'][1-self.length_label])))
+            prob_factor *= (self.global_state['n'][1-self.length_label] / (1 + self.global_state['n'][1-self.length_label])) * (1 / np.sqrt(2*np.pi*np.e))
         if self.global_state['n'][self.length_label] > 1:
-            prob_factor *= ((self.global_state['n'][self.length_label] - 1) / (self.global_state['n'][self.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1))
+            prob_factor *= ((self.global_state['n'][self.length_label]) / (self.global_state['n'][self.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
         
         prob_stick = 1 / (1 + prob_factor)
         rand_number = np.random.rand()
@@ -163,7 +170,8 @@ class Length:
             self.global_state['mean'] = potential_mean
             self.global_state['meansquare'] = potential_meansquare
             self.global_state['S'] = potential_S
-            return self
+            self.global_state['var'] = potential_var
+            return self.next_length
         
         
         for i in range(self.index_start, self.index_stop + 1):
@@ -175,7 +183,7 @@ class Length:
                 lb = self.all_recorded[i-1]
             if self.all_recorded[i] > lb:
                 potential_missed = np.random.uniform(lb, self.all_recorded[i])
-                add_missing_test = self.add_missing(potential_missed, i, i - 1)
+                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb)
                 if not (add_missing_test is None):
                     return add_missing_test
                 
@@ -188,13 +196,13 @@ class Length:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] - 1)
                 prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
                 
-                s_prob_factors, potential_mean, potential_meansquare, potential_S = self.s_effect_of_new_add(self.all_recorded[i])
+                s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var = self.s_effect_of_new_add(self.all_recorded[i])
                 
                 prob_factor *= s_prob_factors.prod(axis=1)
                 
                 regularized_n = np.copy(self.global_state['n'])
                 regularized_n[regularized_n == 0] = 1
-                prob_factor *= (1-(1/(2.0*regularized_n)))*np.sqrt(1/(1+(1/regularized_n)))
+                prob_factor *= ((regularized_n) / (regularized_n+1)) * (1/np.sqrt(2*np.pi*np.e))
                 
                 prob_stick = 1 / (1 + np.sum(prob_factor))
                 rand_number = np.random.rand()
@@ -218,6 +226,7 @@ class Length:
                     self.global_state['mean'] = potential_mean[new_label,:]
                     self.global_state['meansquare'] = potential_meansquare[new_label,:]
                     self.global_state['S'] = potential_S[new_label,:]
+                    self.global_state['var'] = potential_var[new_label,:]
                     
                     return self.next_length
                 
@@ -225,9 +234,10 @@ class Length:
         #Was a length transition missed near the end?
         if self.index_stop < self.index_start:
             potential_missed = np.random.uniform(self.start_time, self.finish_time)
+            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.start_time)
         else:
             potential_missed = np.random.uniform(self.all_recorded[self.index_stop], self.finish_time)
-        add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop)
+            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.all_recorded[self.index_stop])
         if not (add_missing_test is None):
             return add_missing_test
         
@@ -262,15 +272,15 @@ class Length:
             potential_n = np.copy(self.global_state['n'])
             potential_n[self.next_length.length_label] -= 1
             
-            potential_S = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
+            potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
                     
-            s_prob_factors = (potential_S/self.global_state['S'])**(0.5*(1-self.global_state['n']))
-            s_prob_factors *= potential_S**(-0.5*(potential_n - self.global_state['n']))
+            s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
+            s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
             
             prob_factor *= np.prod(s_prob_factors)
             
             if self.global_state['n'][self.next_length.length_label] > 1:
-                prob_factor *= ((self.global_state['n'][self.next_length.length_label] - 1) / (self.global_state['n'][self.next_length.length_label] - (3/2))) * np.sqrt(self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1))
+                prob_factor *= (self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
             
             prob_stick = 1 / (1 + np.sum(prob_factor))
             rand_number = np.random.rand()
@@ -284,6 +294,7 @@ class Length:
                 self.global_state['mean'] = potential_mean
                 self.global_state['meansquare'] = potential_meansquare
                 self.global_state['S'] = potential_S
+                self.global_state['var'] = potential_var
                 
                 self.finish_time = self.next_length.finish_time
                 self.duration = self.finish_time - self.start_time
@@ -295,7 +306,7 @@ class Length:
                     self.index_stop = self.next_length.index_stop
                 self.next_length = self.next_length.next_length
                 
-                return self
+                return self.next_length
             
         return self.next_length
     
