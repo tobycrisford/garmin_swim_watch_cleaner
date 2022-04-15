@@ -254,6 +254,15 @@ class Length:
                 prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
             else:
                 prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['missed'])
+                if self.next_length.index_stop < self.next_length.index_start:
+                    ub = self.next_length.finish_time
+                else:
+                    ub = self.all_recorded[self.next_length.index_start]
+                if self.index_stop < self.index_start:
+                    lb = self.start_time
+                else:
+                    lb = self.all_recorded[self.index_stop]
+                prob_factor *= 1 / (ub - lb)
             
             prob_factor *= (np.sum(self.global_state['n']) + 1) / self.global_state['n'][self.next_length.length_label]
             
