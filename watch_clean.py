@@ -132,7 +132,7 @@ class Length:
         return potential_S, potential_var
         
     
-    def random_hop(self, min_lengths):
+    def random_hop(self):
         
         #Should we change the current length label?
         prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
@@ -245,7 +245,7 @@ class Length:
             return add_missing_test
         
         #Should we merge with the next length?
-        if (not (self.next_length is None)) and np.sum(self.global_state['n']) > min_lengths:
+        if (not (self.next_length is None)):
             if self.end_recorded:
                 prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['recorded'])
                 if self.global_state['extra'] == 0:
@@ -358,33 +358,33 @@ class Length:
     
 
 
-    def run_increment(self, min_lengths):
-        inc = self.random_hop(min_lengths)
+    def run_increment(self):
+        inc = self.random_hop()
         while not (inc is None):
             assert inc.global_state['missed'] + inc.global_state['recorded'] == np.sum(inc.global_state['n']) - 1
-            inc = inc.random_hop(min_lengths)
+            inc = inc.random_hop()
 
-def run_monte_carlo(lengths, min_lengths, n_start, n_checkpoints, checkpoint_size):
+def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
     
     for i in tqdm(range(n_start)):
-        lengths.run_increment(min_lengths)
+        lengths.run_increment()
         
     checkpoints = []
     
     for i in tqdm(range(n_checkpoints)):
         checkpoints.append(copy.deepcopy(lengths.global_state))
         for j in range(checkpoint_size):
-            lengths.run_increment(min_lengths)
+            lengths.run_increment()
             
     return checkpoints
 
-def global_state_testing(lengths, min_lengths, n):
+def global_state_testing(lengths, n):
     
     inc = lengths
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
     for i in tqdm(range(n)):
-        inc = inc.random_hop(min_lengths)
+        inc = inc.random_hop()
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
