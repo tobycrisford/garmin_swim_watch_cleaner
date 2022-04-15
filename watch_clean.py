@@ -78,8 +78,8 @@ class Length:
         
         return s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var
     
-    def add_missing(self, potential_missed, new_start_index, new_stop_index, time_factor):
-        prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
+    def add_missing(self, potential_missed, new_start_index, new_stop_index, time_factor, beta):
+        prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + (beta-1) + 2)
         prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
                 
         s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var = self.s_effect_of_new_add(potential_missed)
@@ -132,7 +132,7 @@ class Length:
         return potential_S, potential_var
         
     
-    def random_hop(self):
+    def random_hop(self, beta):
         
         #Should we change the current length label?
         prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
@@ -184,13 +184,13 @@ class Length:
                 lb = self.all_recorded[i-1]
             if self.all_recorded[i] > lb:
                 potential_missed = np.random.uniform(lb, self.all_recorded[i])
-                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb)
+                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb, beta)
                 if not (add_missing_test is None):
                     return add_missing_test
                 
                 
                 #Should we add back in an extra recorded?
-                prob_factor = (self.global_state['recorded'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + 2)
+                prob_factor = (self.global_state['recorded'] + (beta-1) + 1) / (self.global_state['missed'] + self.global_state['recorded'] + (beta-1) + 2)
                 if self.global_state['extra'] == 1:
                     prob_factor *= 2 #To regularize
                 else:
@@ -237,24 +237,24 @@ class Length:
         #Was a length transition missed near the end?
         if self.index_stop < self.index_start:
             potential_missed = np.random.uniform(self.start_time, self.finish_time)
-            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.start_time)
+            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.start_time, beta)
         else:
             potential_missed = np.random.uniform(self.all_recorded[self.index_stop], self.finish_time)
-            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.all_recorded[self.index_stop])
+            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.all_recorded[self.index_stop], beta)
         if not (add_missing_test is None):
             return add_missing_test
         
         #Should we merge with the next length?
         if (not (self.next_length is None)):
             if self.end_recorded:
-                prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['recorded'])
+                prob_factor = (self.global_state['missed']+self.global_state['recorded']+1+(beta-1))/(self.global_state['recorded']+(beta-1))
                 if self.global_state['extra'] == 0:
                     prob_factor *= 0.5
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
                 prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
             else:
-                prob_factor = (self.global_state['missed']+self.global_state['recorded']+1)/(self.global_state['missed'])
+                prob_factor = (self.global_state['missed']+self.global_state['recorded']+1+(beta-1))/(self.global_state['missed'])
                 if self.next_length.index_stop < self.next_length.index_start:
                     ub = self.next_length.finish_time
                 else:
@@ -358,33 +358,33 @@ class Length:
     
 
 
-    def run_increment(self):
-        inc = self.random_hop()
+    def run_increment(self, beta):
+        inc = self.random_hop(beta)
         while not (inc is None):
             assert inc.global_state['missed'] + inc.global_state['recorded'] == np.sum(inc.global_state['n']) - 1
-            inc = inc.random_hop()
+            inc = inc.random_hop(beta)
 
-def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size):
+def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size, beta):
     
     for i in tqdm(range(n_start)):
-        lengths.run_increment()
+        lengths.run_increment(beta)
         
     checkpoints = []
     
     for i in tqdm(range(n_checkpoints)):
         checkpoints.append(copy.deepcopy(lengths.global_state))
         for j in range(checkpoint_size):
-            lengths.run_increment()
+            lengths.run_increment(beta)
             
     return checkpoints
 
-def global_state_testing(lengths, n):
+def global_state_testing(lengths, n, beta):
     
     inc = lengths
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
     for i in tqdm(range(n)):
-        inc = inc.random_hop()
+        inc = inc.random_hop(beta)
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
