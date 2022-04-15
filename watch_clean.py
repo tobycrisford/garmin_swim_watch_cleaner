@@ -7,6 +7,7 @@ Created on Sat Mar 26 16:34:56 2022
 
 import numpy as np
 from tqdm import tqdm
+import copy
 
 class Length:
     
@@ -371,7 +372,7 @@ def run_monte_carlo(lengths, min_lengths, n_start, n_checkpoints, checkpoint_siz
     checkpoints = []
     
     for i in tqdm(range(n_checkpoints)):
-        checkpoints.append(lengths.global_state.copy())
+        checkpoints.append(copy.deepcopy(lengths.global_state))
         for j in range(checkpoint_size):
             lengths.run_increment(min_lengths)
             
@@ -384,7 +385,7 @@ def global_state_testing(lengths, min_lengths, n):
     
     for i in tqdm(range(n)):
         inc = inc.random_hop(min_lengths)
-        gs = lengths.global_state.copy()
+        gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
             if isinstance(lengths.global_state[j], np.ndarray):
