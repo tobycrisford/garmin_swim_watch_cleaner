@@ -85,6 +85,8 @@ class Length:
     def add_missing(self, potential_missed, new_start_index, new_stop_index, time_factor, beta, near_extra):
         if not near_extra:
             prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + (beta-1) + 2)
+        else:
+            prob_factor = 1.0
         prob_factor = prob_factor * ((self.global_state['n'] + 1) / (np.sum(self.global_state['n']) + 2))
                 
         s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var = self.s_effect_of_new_add(potential_missed)
@@ -105,7 +107,7 @@ class Length:
                 new_label = 1
             self.next_length = Length(potential_missed, self.finish_time,
                                       self.next_length, False, self.end_recorded,
-                                      new_label, self.all_recorded, new_start_index, self.index_stop, True)
+                                      new_label, self.all_recorded, new_start_index, self.index_stop, near_extra)
             self.next_length.global_state = self.global_state
             self.finish_time = potential_missed
             self.duration = self.finish_time - self.start_time
@@ -274,7 +276,7 @@ class Length:
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
                 prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
-                if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop:
+                if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop and self.global_state['missed'] > 0: #Last condition should be unnecessary in practice, but can occur for large watch_min. Certainly don't want to remove a missed probability if total misseds already 0.
                     prob_factor *= (self.global_state['missed'] + (self.global_state['recorded']-1) + 1 + (beta-1)) / (self.global_state['missed'])
             else:
                 if self.next_length.start_moved:
@@ -328,9 +330,9 @@ class Length:
                     self.global_state['recorded'] -= 1
                     self.global_state['extra'] += 1
                     if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop:
-                        self.global_state['missed'] += 1
-                        self.global_state['moved_starts'] -= 1
-                        self.next_length.next_length.start_moved = False
+                        self.global_state['missed'] -= 1
+                        self.global_state['moved_starts'] += 1
+                        self.next_length.next_length.start_moved = True
                 else:
                     if self.next_length.start_moved:
                         self.global_state['moved_starts'] -= 1
@@ -378,25 +380,32 @@ class Length:
             else:
                 t.append(t[i-1] + np.random.normal(b_length, 1.0))
         
+        missing_count = 0
         to_remove = []
         for time in t:
             if np.random.rand() < miss_prob:
+                missing_count += 1
                 to_remove.append(time)
                 
         for r in to_remove:
             t.remove(r)
         
-        t += list(np.random.uniform(t[0], t[-1], size = np.random.poisson(extra_mean)))
-                
+        extras = list(np.random.uniform(t[0], t[-1], size = np.random.poisson(extra_mean)))
+        t += extras
+        
         t.sort()
         
+        moved_count = 0
         to_remove = []
         for i in range(1,len(t)):
             if t[i] - t[i-1] < watch_min:
+                moved_count += 1
                 to_remove.append(t[i])
                 
         for r in to_remove:
             t.remove(r)
+            
+        print(missing_count, len(extras), moved_count)
         
         return Length.create_from_recorded(t)
     
@@ -428,6 +437,7 @@ def global_state_testing(lengths, n, beta, watch_min):
     inc = lengths
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
+    last_gs = None
     for i in tqdm(range(n)):
         inc = inc.random_hop(beta, watch_min)
         gs = copy.deepcopy(lengths.global_state)
@@ -435,13 +445,16 @@ def global_state_testing(lengths, n, beta, watch_min):
         for j in gs:
             if isinstance(lengths.global_state[j], np.ndarray):
                 if not np.all(np.isclose(gs[j], lengths.global_state[j])):
-                    print(gs[j], lengths.global_state[j])
+                    print(gs[j], lengths.global_state[j], last_gs)
+                    input("Press to continue")
                     raise Exception("Global state inconsistency: " + j)
             elif gs[j] != lengths.global_state[j]:
-                print(gs[j], lengths.global_state[j])
+                print(gs[j], lengths.global_state[j], last_gs)
+                input("Press to continue")
                 raise Exception("Global state inconsistency: " + j)
         assert gs['moved_starts'] + gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
         assert gs['extra'] + gs['recorded'] == times_length
         if inc is None:
             inc = lengths
+        last_gs = copy.deepcopy(gs)
                 
