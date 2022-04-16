@@ -25,7 +25,7 @@ class Length:
         self.index_stop = index_stop
     
     @classmethod
-    def create_from_recorded(cls, all_recorded, start_index):
+    def create_from_recorded(cls, all_recorded, start_index=0):
         length_label = int(np.random.rand() > 0.5)
         if len(all_recorded) - start_index > 2:
             next_length = Length.create_from_recorded(all_recorded, start_index + 1)
