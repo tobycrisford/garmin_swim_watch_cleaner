@@ -370,7 +370,7 @@ class Length:
     
     #For testing
     @classmethod
-    def init_random_state(cls, n, a_length, b_length, extra_mean, miss_prob):
+    def init_random_state(cls, n, a_length, b_length, extra_mean, miss_prob, watch_min):
         t = [0]
         for i in range(1,n+1):
             if np.random.rand() > 0.5:
@@ -378,46 +378,58 @@ class Length:
             else:
                 t.append(t[i-1] + np.random.normal(b_length, 1.0))
         
-        t += list(np.random.uniform(t[0], t[-1], size = np.random.poisson(extra_mean)))
-        
+        to_remove = []
         for time in t:
             if np.random.rand() < miss_prob:
-                t.remove(time)
+                to_remove.append(time)
+                
+        for r in to_remove:
+            t.remove(r)
+        
+        t += list(np.random.uniform(t[0], t[-1], size = np.random.poisson(extra_mean)))
                 
         t.sort()
         
-        return Length.create_from_recorded(t, 0)
+        to_remove = []
+        for i in range(1,len(t)):
+            if t[i] - t[i-1] < watch_min:
+                to_remove.append(t[i])
+                
+        for r in to_remove:
+            t.remove(r)
+        
+        return Length.create_from_recorded(t)
     
     
 
 
-    def run_increment(self, beta):
-        inc = self.random_hop(beta)
+    def run_increment(self, beta, watch_min):
+        inc = self.random_hop(beta, watch_min)
         while not (inc is None):
-            assert inc.global_state['missed'] + inc.global_state['recorded'] == np.sum(inc.global_state['n']) - 1
-            inc = inc.random_hop(beta)
+            assert inc.global_state['moved_starts'] + inc.global_state['missed'] + inc.global_state['recorded'] == np.sum(inc.global_state['n']) - 1
+            inc = inc.random_hop(beta, watch_min)
 
-def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size, beta):
+def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size, beta, watch_min):
     
     for i in tqdm(range(n_start)):
-        lengths.run_increment(beta)
+        lengths.run_increment(beta, watch_min)
         
     checkpoints = []
     
     for i in tqdm(range(n_checkpoints)):
         checkpoints.append(copy.deepcopy(lengths.global_state))
         for j in range(checkpoint_size):
-            lengths.run_increment(beta)
+            lengths.run_increment(beta, watch_min)
             
     return checkpoints
 
-def global_state_testing(lengths, n, beta):
+def global_state_testing(lengths, n, beta, watch_min):
     
     inc = lengths
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
     for i in tqdm(range(n)):
-        inc = inc.random_hop(beta)
+        inc = inc.random_hop(beta, watch_min)
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
@@ -428,7 +440,7 @@ def global_state_testing(lengths, n, beta):
             elif gs[j] != lengths.global_state[j]:
                 print(gs[j], lengths.global_state[j])
                 raise Exception("Global state inconsistency: " + j)
-        assert gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
+        assert gs['moved_starts'] + gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
         assert gs['extra'] + gs['recorded'] == times_length
         if inc is None:
             inc = lengths
