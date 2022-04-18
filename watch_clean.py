@@ -99,7 +99,7 @@ class Length:
         prob_factor *= time_factor
         
         #We impose watch_min rule as well
-        if self.finish_time - potential_missed < min_length:
+        if (self.finish_time - potential_missed < min_length) or (potential_missed - self.start_time < min_length):
             prob_factor = 0.0
                 
         prob_stick = 1 / (1 + np.sum(prob_factor))
@@ -221,7 +221,7 @@ class Length:
                 
                 prob_factor *= self.all_recorded[-1] - self.all_recorded[0]
                         
-                if self.finish_time - self.all_recorded[i] < watch_min:
+                if (self.finish_time - self.all_recorded[i] < watch_min) or (self.all_recorded[i] - self.start_time < watch_min):
                     prob_factor = 0.0
                 
                 prob_stick = 1 / (1 + np.sum(prob_factor))
@@ -351,7 +351,7 @@ class Length:
     #For debugging
     def print_all(self):
         
-        print(self.length_label, self.start_time, self.start_recorded, self.finish_time, self.end_recorded)
+        print(self.length_label, self.start_time, self.start_recorded, self.finish_time, self.end_recorded, self.duration)
         for i in range(self.index_start, self.index_stop+1):
             if self.all_recorded[i] > self.start_time:
                 print('Extra', self.all_recorded[i])
@@ -448,6 +448,7 @@ def global_state_testing(lengths, n, beta, watch_min):
             assert gs['moved_starts'] >= 0
             assert gs['extra'] >= 0
             assert gs['recorded'] >= 0
+            assert gs['extra'] >= gs['moved_starts']
         except:
             print(i)
             print(last_gs)
