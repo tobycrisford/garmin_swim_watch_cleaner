@@ -190,13 +190,11 @@ class Length:
             #Was a length transition missed?
             if i == self.index_start:
                 lb = self.start_time
-                lb_extra = False
             else:
                 lb = self.all_recorded[i-1]
-                lb_extra = (self.all_recorded[i-1] != self.start_time)
             if self.all_recorded[i] > lb:
                 potential_missed = np.random.uniform(lb, self.all_recorded[i])
-                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb, beta, (potential_missed - lb < watch_min) and lb_extra)
+                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb, beta, potential_missed - self.all_recorded[i-1] < watch_min)
                 if not (add_missing_test is None):
                     return add_missing_test
                 
@@ -220,7 +218,7 @@ class Length:
                 prob_factor *= self.all_recorded[-1] - self.all_recorded[0]
                 
                 if i == self.index_stop and (not (self.next_length is None)):
-                    if self.next_length.start_moved and self.next_length.start_time - self.all_recorded[i] < watch_min:
+                    if self.next_length.start_moved and (self.next_length.start_time - self.all_recorded[i] < watch_min):
                         prob_factor *= (self.global_state['missed'] + 1) / (self.global_state['missed'] + (self.global_state['recorded'] + 1) + (beta-1) + 2)
                         
                 
@@ -232,7 +230,7 @@ class Length:
                     else:
                         new_label = 1
                     if i == self.index_stop and (not (self.next_length is None)):
-                        if self.next_length.start_moved and self.next_length.start_time - self.all_recorded[i] < watch_min:
+                        if self.next_length.start_moved and (self.next_length.start_time - self.all_recorded[i] < watch_min):
                             self.next_length.start_moved = False
                             self.global_state['missed'] += 1
                             self.global_state['moved_starts'] -= 1
@@ -263,7 +261,7 @@ class Length:
         else:
             potential_missed = np.random.uniform(self.all_recorded[self.index_stop], self.finish_time)
             add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.all_recorded[self.index_stop], beta,
-                                                self.all_recorded[self.index_stop] != self.start_time and potential_missed - self.all_recorded[self.index_stop] < watch_min)
+                                                (potential_missed - self.all_recorded[self.index_stop] < watch_min))
         if not (add_missing_test is None):
             return add_missing_test
         
@@ -276,7 +274,7 @@ class Length:
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
                 prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
-                if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop and self.global_state['missed'] > 0: #Last condition should be unnecessary in practice, but can occur for large watch_min. Certainly don't want to remove a missed probability if total misseds already 0.
+                if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop:
                     prob_factor *= (self.global_state['missed'] + (self.global_state['recorded']-1) + 1 + (beta-1)) / (self.global_state['missed'])
             else:
                 if self.next_length.start_moved:
