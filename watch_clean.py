@@ -193,7 +193,7 @@ class Length:
                 lb_extra = False
             else:
                 lb = self.all_recorded[i-1]
-                lb_extra = True
+                lb_extra = (self.all_recorded[i-1] != self.start_time)
             if self.all_recorded[i] > lb:
                 potential_missed = np.random.uniform(lb, self.all_recorded[i])
                 add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb, beta, (potential_missed - lb < watch_min) and lb_extra)
@@ -452,8 +452,21 @@ def global_state_testing(lengths, n, beta, watch_min):
                 print(gs[j], lengths.global_state[j], last_gs)
                 input("Press to continue")
                 raise Exception("Global state inconsistency: " + j)
-        assert gs['moved_starts'] + gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
-        assert gs['extra'] + gs['recorded'] == times_length
+        try:
+            assert gs['moved_starts'] + gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
+            assert gs['extra'] + gs['recorded'] == times_length
+            assert gs['extra'] >= gs['moved_starts']
+            testing = lengths
+            while not (testing is None):
+                if not ((testing.start_recorded and (testing.index_stop > testing.index_start)) or ((not testing.start_recorded) and (testing.index_stop >= testing.index_start))):
+                    if not (testing.next_length is None):
+                        assert not testing.next_length.start_moved
+                testing = testing.next_length
+        except:
+            print(i)
+            print(last_gs)
+            input("Press to continue")
+            raise AssertionError()
         if inc is None:
             inc = lengths
         last_gs = copy.deepcopy(gs)
