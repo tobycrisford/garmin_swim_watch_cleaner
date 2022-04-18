@@ -216,10 +216,6 @@ class Length:
                 prob_factor *= ((regularized_n) / (regularized_n+1)) * (1/np.sqrt(2*np.pi*np.e))
                 
                 prob_factor *= self.all_recorded[-1] - self.all_recorded[0]
-                
-                if i == self.index_stop and (not (self.next_length is None)):
-                    if self.next_length.start_moved and (self.next_length.start_time - self.all_recorded[i] < watch_min):
-                        prob_factor *= (self.global_state['missed'] + 1) / (self.global_state['missed'] + (self.global_state['recorded'] + 1) + (beta-1) + 2)
                         
                 
                 prob_stick = 1 / (1 + np.sum(prob_factor))
@@ -229,11 +225,6 @@ class Length:
                         new_label = 0
                     else:
                         new_label = 1
-                    if i == self.index_stop and (not (self.next_length is None)):
-                        if self.next_length.start_moved and (self.next_length.start_time - self.all_recorded[i] < watch_min):
-                            self.next_length.start_moved = False
-                            self.global_state['missed'] += 1
-                            self.global_state['moved_starts'] -= 1
                     self.next_length = Length(self.all_recorded[i], self.finish_time,
                                               self.next_length, True, self.end_recorded,
                                               new_label, self.all_recorded, i, self.index_stop, False)
