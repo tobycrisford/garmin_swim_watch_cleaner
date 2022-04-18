@@ -453,13 +453,10 @@ def global_state_testing(lengths, n, beta, watch_min):
         try:
             assert gs['moved_starts'] + gs['missed'] + gs['recorded'] == np.sum(gs['n']) - 1
             assert gs['extra'] + gs['recorded'] == times_length
-            assert gs['extra'] >= gs['moved_starts']
-            testing = lengths
-            while not (testing is None):
-                if not ((testing.start_recorded and (testing.index_stop > testing.index_start)) or ((not testing.start_recorded) and (testing.index_stop >= testing.index_start))):
-                    if not (testing.next_length is None):
-                        assert not testing.next_length.start_moved
-                testing = testing.next_length
+            assert gs['missed'] >= 0
+            assert gs['moved_starts'] >= 0
+            assert gs['extra'] >= 0
+            assert gs['recorded'] >= 0
         except:
             print(i)
             print(last_gs)
