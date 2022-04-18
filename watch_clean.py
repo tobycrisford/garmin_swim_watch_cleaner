@@ -274,8 +274,6 @@ class Length:
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
                 prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
-                if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop:
-                    prob_factor *= (self.global_state['missed'] + (self.global_state['recorded']-1) + 1 + (beta-1)) / (self.global_state['missed'])
             else:
                 if self.next_length.start_moved:
                     prob_factor = 1.0
@@ -327,10 +325,6 @@ class Length:
                 if self.end_recorded:
                     self.global_state['recorded'] -= 1
                     self.global_state['extra'] += 1
-                    if (not self.next_length.end_recorded) and self.next_length.duration < watch_min and self.next_length.index_start == self.next_length.index_stop:
-                        self.global_state['missed'] -= 1
-                        self.global_state['moved_starts'] += 1
-                        self.next_length.next_length.start_moved = True
                 else:
                     if self.next_length.start_moved:
                         self.global_state['moved_starts'] -= 1
