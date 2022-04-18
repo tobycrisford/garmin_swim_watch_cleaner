@@ -82,7 +82,7 @@ class Length:
         
         return s_prob_factors, potential_mean, potential_meansquare, potential_S, potential_var
     
-    def add_missing(self, potential_missed, new_start_index, new_stop_index, time_factor, beta, near_extra):
+    def add_missing(self, potential_missed, new_start_index, new_stop_index, time_factor, beta, near_extra, min_length):
         if not near_extra:
             prob_factor = (self.global_state['missed'] + 1) / (self.global_state['missed'] + self.global_state['recorded'] + (beta-1) + 2)
         else:
@@ -97,6 +97,10 @@ class Length:
         regularized_n[regularized_n == 0] = 1
         prob_factor *= (regularized_n / (1 + regularized_n)) * (1 / np.sqrt(2*np.pi*np.e))
         prob_factor *= time_factor
+        
+        #We impose watch_min rule as well
+        if self.finish_time - potential_missed < min_length:
+            prob_factor = 0.0
                 
         prob_stick = 1 / (1 + np.sum(prob_factor))
         rand_number = np.random.rand()
@@ -194,7 +198,7 @@ class Length:
                 lb = self.all_recorded[i-1]
             if self.all_recorded[i] > lb:
                 potential_missed = np.random.uniform(lb, self.all_recorded[i])
-                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb, beta, potential_missed - self.all_recorded[i-1] < watch_min)
+                add_missing_test = self.add_missing(potential_missed, i, i - 1, self.all_recorded[i] - lb, beta, potential_missed - self.all_recorded[i-1] < watch_min, watch_min)
                 if not (add_missing_test is None):
                     return add_missing_test
                 
@@ -217,6 +221,8 @@ class Length:
                 
                 prob_factor *= self.all_recorded[-1] - self.all_recorded[0]
                         
+                if self.finish_time - self.all_recorded[i] < watch_min:
+                    prob_factor = 0.0
                 
                 prob_stick = 1 / (1 + np.sum(prob_factor))
                 rand_number = np.random.rand()
@@ -248,11 +254,11 @@ class Length:
         #Was a length transition missed near the end?
         if self.index_stop < self.index_start:
             potential_missed = np.random.uniform(self.start_time, self.finish_time)
-            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.start_time, beta, False)
+            add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.start_time, beta, False, watch_min)
         else:
             potential_missed = np.random.uniform(self.all_recorded[self.index_stop], self.finish_time)
             add_missing_test = self.add_missing(potential_missed, self.index_stop + 1, self.index_stop, self.finish_time - self.all_recorded[self.index_stop], beta,
-                                                (potential_missed - self.all_recorded[self.index_stop] < watch_min))
+                                                (potential_missed - self.all_recorded[self.index_stop] < watch_min), watch_min)
         if not (add_missing_test is None):
             return add_missing_test
         
