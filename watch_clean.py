@@ -129,7 +129,7 @@ class Length:
             self.global_state['S'] = potential_S[new_label,:]
             self.global_state['var'] = potential_var[new_label,:]
                     
-            return self.next_length
+            return (self.next_length, self.next_length.index_start, False)
         
         return None
     
@@ -146,50 +146,51 @@ class Length:
         return potential_S, potential_var
         
     
-    def random_hop(self, beta, watch_min):
+    def random_hop(self, beta, watch_min, start_from, check_length_label):
         
         #Should we change the current length label?
-        prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
-        potential_mean = np.copy(self.global_state['mean'])
-        potential_meansquare = np.copy(self.global_state['meansquare'])
-        if self.global_state['n'][self.length_label] > 1:
-            n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
-        else:
-            n_factor = 1
-        potential_mean[self.length_label] -= self.duration / self.global_state['n'][self.length_label]
-        potential_mean[self.length_label] *= n_factor
-        potential_meansquare[self.length_label] -= (self.duration**2) / self.global_state['n'][self.length_label]
-        potential_meansquare[self.length_label] *= n_factor
-        potential_mean[1-self.length_label] = ((potential_mean[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)) / (self.global_state['n'][1-self.length_label] + 1)
-        potential_meansquare[1-self.length_label] = ((potential_meansquare[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)**2) / (self.global_state['n'][1-self.length_label] + 1)
-        potential_n = np.copy(self.global_state['n'])
-        potential_n[self.length_label] -= 1
-        potential_n[1-self.length_label] += 1
-        potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
-                
-        s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
-        s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
+        if check_length_label:
+            prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
+            potential_mean = np.copy(self.global_state['mean'])
+            potential_meansquare = np.copy(self.global_state['meansquare'])
+            if self.global_state['n'][self.length_label] > 1:
+                n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
+            else:
+                n_factor = 1
+            potential_mean[self.length_label] -= self.duration / self.global_state['n'][self.length_label]
+            potential_mean[self.length_label] *= n_factor
+            potential_meansquare[self.length_label] -= (self.duration**2) / self.global_state['n'][self.length_label]
+            potential_meansquare[self.length_label] *= n_factor
+            potential_mean[1-self.length_label] = ((potential_mean[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)) / (self.global_state['n'][1-self.length_label] + 1)
+            potential_meansquare[1-self.length_label] = ((potential_meansquare[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)**2) / (self.global_state['n'][1-self.length_label] + 1)
+            potential_n = np.copy(self.global_state['n'])
+            potential_n[self.length_label] -= 1
+            potential_n[1-self.length_label] += 1
+            potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
+                    
+            s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
+            s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
+            
+            prob_factor *= np.prod(s_prob_factors)
+            
+            if self.global_state['n'][1-self.length_label] > 0:
+                prob_factor *= (self.global_state['n'][1-self.length_label] / (1 + self.global_state['n'][1-self.length_label])) * (1 / np.sqrt(2*np.pi*np.e))
+            if self.global_state['n'][self.length_label] > 1:
+                prob_factor *= ((self.global_state['n'][self.length_label]) / (self.global_state['n'][self.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
+            
+            prob_stick = 1 / (1 + prob_factor)
+            rand_number = np.random.rand()
+            if rand_number > prob_stick:
+                self.length_label = 1 - self.length_label
+                self.global_state['n'] = potential_n
+                self.global_state['mean'] = potential_mean
+                self.global_state['meansquare'] = potential_meansquare
+                self.global_state['S'] = potential_S
+                self.global_state['var'] = potential_var
+                return (self, self.index_start, False)
         
-        prob_factor *= np.prod(s_prob_factors)
         
-        if self.global_state['n'][1-self.length_label] > 0:
-            prob_factor *= (self.global_state['n'][1-self.length_label] / (1 + self.global_state['n'][1-self.length_label])) * (1 / np.sqrt(2*np.pi*np.e))
-        if self.global_state['n'][self.length_label] > 1:
-            prob_factor *= ((self.global_state['n'][self.length_label]) / (self.global_state['n'][self.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
-        
-        prob_stick = 1 / (1 + prob_factor)
-        rand_number = np.random.rand()
-        if rand_number > prob_stick:
-            self.length_label = 1 - self.length_label
-            self.global_state['n'] = potential_n
-            self.global_state['mean'] = potential_mean
-            self.global_state['meansquare'] = potential_meansquare
-            self.global_state['S'] = potential_S
-            self.global_state['var'] = potential_var
-            return self.next_length
-        
-        
-        for i in range(self.index_start, self.index_stop + 1):
+        for i in range(start_from, self.index_stop + 1):
             
             #Was a length transition missed?
             if i == self.index_start:
@@ -248,7 +249,7 @@ class Length:
                     self.global_state['S'] = potential_S[new_label,:]
                     self.global_state['var'] = potential_var[new_label,:]
                     
-                    return self.next_length
+                    return (self.next_length, self.next_length.index_start, False)
                 
                 
         #Was a length transition missed near the end?
@@ -319,6 +320,7 @@ class Length:
             prob_stick = 1 / (1 + np.sum(prob_factor))
             rand_number = np.random.rand()
             if rand_number > prob_stick:
+                new_start_from = self.next_length.index_start + 1
                 if self.end_recorded:
                     self.global_state['recorded'] -= 1
                     self.global_state['extra'] += 1
@@ -343,9 +345,9 @@ class Length:
                     self.index_stop = self.next_length.index_stop
                 self.next_length = self.next_length.next_length
                 
-                return self.next_length
+                return (self, new_start_from, False)
             
-        return self.next_length
+        return (self.next_length, self.next_length.index_start, True)
     
     
     #For debugging
@@ -402,10 +404,10 @@ class Length:
 
 
     def run_increment(self, beta, watch_min):
-        inc = self.random_hop(beta, watch_min)
-        while not (inc is None):
-            assert inc.global_state['moved_starts'] + inc.global_state['missed'] + inc.global_state['recorded'] == np.sum(inc.global_state['n']) - 1
-            inc = inc.random_hop(beta, watch_min)
+        inc = self.random_hop(beta, watch_min, self.index_start, True)
+        while not (inc[0] is None):
+            assert inc[0].global_state['moved_starts'] + inc[0].global_state['missed'] + inc[0].global_state['recorded'] == np.sum(inc[0].global_state['n']) - 1
+            inc = inc[0].random_hop(beta, watch_min, inc[1], inc[2])
 
 def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size, beta, watch_min):
     
@@ -423,12 +425,12 @@ def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size, beta, watc
 
 def global_state_testing(lengths, n, beta, watch_min):
     
-    inc = lengths
+    inc = (lengths, lengths.index_start, True)
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
     last_gs = None
     for i in tqdm(range(n)):
-        inc = inc.random_hop(beta, watch_min)
+        inc = inc[0].random_hop(beta, watch_min, inc[1], inc[2])
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
@@ -454,7 +456,7 @@ def global_state_testing(lengths, n, beta, watch_min):
             print(last_gs)
             input("Press to continue")
             raise AssertionError()
-        if inc is None:
-            inc = lengths
+        if inc[0] is None:
+            inc = (lengths, lengths.index_start, True)
         last_gs = copy.deepcopy(gs)
                 
