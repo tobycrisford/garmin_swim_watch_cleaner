@@ -347,7 +347,10 @@ class Length:
                 
                 return (self, new_start_from, False)
             
-        return (self.next_length, self.next_length.index_start, True)
+        if self.next_length is None:
+            return (None, None, None)
+        else:
+            return (self.next_length, self.next_length.index_start, True)
     
     
     #For debugging
