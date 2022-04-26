@@ -99,8 +99,8 @@ class Length:
         prob_factor *= time_factor
         
         #We impose watch_min rule as well
-        if (self.finish_time - potential_missed < min_length) or (potential_missed - self.start_time < min_length):
-            prob_factor = 0.0
+        #if (self.finish_time - potential_missed < min_length) or (potential_missed - self.start_time < min_length):
+            #prob_factor = 0.0
                 
         prob_stick = 1 / (1 + np.sum(prob_factor))
         rand_number = np.random.rand()
@@ -141,7 +141,7 @@ class Length:
         
         potential_var = potential_meansquare - potential_mean**2
         
-        potential_var[potential_var <= 10**-5] = 10**(-5) #To regularize
+        potential_var[potential_var <= 1.0] = 1.0 #To regularize
         
         return potential_S, potential_var
         
@@ -222,8 +222,8 @@ class Length:
                 
                 prob_factor *= self.all_recorded[-1] - self.all_recorded[0]
                         
-                if (self.finish_time - self.all_recorded[i] < watch_min) or (self.all_recorded[i] - self.start_time < watch_min):
-                    prob_factor = 0.0
+                #if (self.finish_time - self.all_recorded[i] < watch_min) or (self.all_recorded[i] - self.start_time < watch_min):
+                    #prob_factor = 0.0
                 
                 prob_stick = 1 / (1 + np.sum(prob_factor))
                 rand_number = np.random.rand()
@@ -453,7 +453,7 @@ def global_state_testing(lengths, n, beta, watch_min):
             assert gs['moved_starts'] >= 0
             assert gs['extra'] >= 0
             assert gs['recorded'] >= 0
-            assert gs['extra'] >= gs['moved_starts']
+            #assert gs['extra'] >= gs['moved_starts']
         except:
             print(i)
             print(last_gs)
