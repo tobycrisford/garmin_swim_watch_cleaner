@@ -58,7 +58,7 @@ class Length:
         global_state['S'] = global_state['n'] * (global_state['meansquare'] - global_state['mean']**2)
         global_state['S'][global_state['S'] <= 1] = 1 #regularize
         global_state['var'] = global_state['meansquare'] - global_state['mean']**2
-        global_state['var'][global_state['var'] <= 10**(-5)] = 10**(-5)
+        global_state['var'][global_state['var'] <= 1.0] = 1.0
         
         self.global_state = global_state
         if not (self.next_length is None):
