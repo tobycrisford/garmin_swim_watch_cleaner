@@ -8,6 +8,7 @@ Created on Sat Mar 26 16:34:56 2022
 import numpy as np
 from tqdm import tqdm
 import copy
+import math
 
 class Length:
     
@@ -63,6 +64,44 @@ class Length:
         self.global_state = global_state
         if not (self.next_length is None):
             self.next_length.calculate_global_state(self.global_state)
+            
+            
+    def calculate_missing_weightings(self):
+        
+        if self.next_length is None:
+            return 1.0
+        
+        if not self.end_recorded:
+            if self.index_start <= self.index_stop:
+                lb = self.all_recorded[self.index_stop]
+            else:
+                lb = self.start_time
+            if self.next_length.index_start <= self.next_length.index_stop:
+                ub = self.all_recorded[self.next_length.index_start]
+            else:
+                ub = self.next_length.finish_time
+            weight = ub - lb
+        else:
+            weight = 1.0
+        
+        return weight * self.next_length.calculate_missing_weightings()
+            
+    
+    #This function is expensive, run only during testing
+    def calculate_probability_weight(self, beta, watch_min):
+        prob_weight = (math.factorial(self.global_state['missing']) * math.factorial(self.global_state['recorded'] + (beta-1))) / math.factorial(self.global_state['missing'] + self.global_state['recorded'] + (beta-1) + 1)
+        prob_weight *= (math.factorial(self.global_state['n'][0]) * math.factorial(self.global_state['n'][1])) / math.factorial(self.global_state['n'][0] + self.global_state['n'][1] + 1)
+        if self.global_state['extra'] == 0:
+            prob_weight *= 2
+        else:
+            prob_weight *= 1/self.global_state['extra']
+        prob_weight *= 1 / (self.all_recorded[-1] - self.all_recorded[0])**self.global_state['extra']
+        
+        prob_weight *= (1 / (2*math.pi*math.e)**(self.global_state['n']/2)) * (1 / self.global_state['n']) * (self.global_state['n'] / self.global_state['S'])**((self.global_state['n']-1)/2)
+        
+        prob_weight *= self.calculate_missing_weightings()
+        
+        return prob_weight
             
     
     def s_effect_of_new_add(self, cut_time):
@@ -129,7 +168,7 @@ class Length:
             self.global_state['S'] = potential_S[new_label,:]
             self.global_state['var'] = potential_var[new_label,:]
                     
-            return (self.next_length, self.next_length.index_start, False)
+            return (self.next_length, self.next_length.index_start, False, prob_factor[new_label])
         
         return None
     
@@ -187,7 +226,7 @@ class Length:
                 self.global_state['meansquare'] = potential_meansquare
                 self.global_state['S'] = potential_S
                 self.global_state['var'] = potential_var
-                return (self, self.index_start, False)
+                return (self, self.index_start, False, prob_factor)
         
         
         for i in range(start_from, self.index_stop + 1):
@@ -249,7 +288,7 @@ class Length:
                     self.global_state['S'] = potential_S[new_label,:]
                     self.global_state['var'] = potential_var[new_label,:]
                     
-                    return (self.next_length, self.next_length.index_start, False)
+                    return (self.next_length, self.next_length.index_start, False, prob_factor[new_label])
                 
                 
         #Was a length transition missed near the end?
@@ -345,12 +384,12 @@ class Length:
                     self.index_stop = self.next_length.index_stop
                 self.next_length = self.next_length.next_length
                 
-                return (self, new_start_from, False)
+                return (self, new_start_from, False, prob_factor)
             
         if self.next_length is None:
             return (None, None, None)
         else:
-            return (self.next_length, self.next_length.index_start, True)
+            return (self.next_length, self.next_length.index_start, True, 1.0)
     
     
     #For debugging
@@ -433,7 +472,10 @@ def global_state_testing(lengths, n, beta, watch_min):
     
     last_gs = None
     for i in tqdm(range(n)):
+        initial_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
         inc = inc[0].random_hop(beta, watch_min, inc[1], inc[2])
+        final_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
+        assert np.isclose(final_prob_factor / initial_prob_factor, inc[3])
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
