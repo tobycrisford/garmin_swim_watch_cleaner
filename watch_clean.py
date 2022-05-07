@@ -89,7 +89,7 @@ class Length:
     
     #This function is expensive, run only during testing
     def calculate_probability_weight(self, beta, watch_min):
-        prob_weight = (math.factorial(self.global_state['missing']) * math.factorial(self.global_state['recorded'] + (beta-1))) / math.factorial(self.global_state['missing'] + self.global_state['recorded'] + (beta-1) + 1)
+        prob_weight = (math.factorial(self.global_state['missed']) * math.factorial(self.global_state['recorded'] + (beta-1))) / math.factorial(self.global_state['missed'] + self.global_state['recorded'] + (beta-1) + 1)
         prob_weight *= (math.factorial(self.global_state['n'][0]) * math.factorial(self.global_state['n'][1])) / math.factorial(self.global_state['n'][0] + self.global_state['n'][1] + 1)
         if self.global_state['extra'] == 0:
             prob_weight *= 2
@@ -97,7 +97,7 @@ class Length:
             prob_weight *= 1/self.global_state['extra']
         prob_weight *= 1 / (self.all_recorded[-1] - self.all_recorded[0])**self.global_state['extra']
         
-        prob_weight *= (1 / (2*math.pi*math.e)**(self.global_state['n']/2)) * (1 / self.global_state['n']) * (self.global_state['n'] / self.global_state['S'])**((self.global_state['n']-1)/2)
+        prob_weight *= np.prod((1 / (2*math.pi*math.e)**(self.global_state['n']/2)) * (1 / self.global_state['n']) * (self.global_state['var'])**((self.global_state['n']-1)/2))
         
         prob_weight *= self.calculate_missing_weightings()
         
@@ -470,12 +470,18 @@ def global_state_testing(lengths, n, beta, watch_min):
     inc = (lengths, lengths.index_start, True)
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
-    last_gs = None
+    last_gs = copy.deepcopy(lengths.global_state)
     for i in tqdm(range(n)):
         initial_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
         inc = inc[0].random_hop(beta, watch_min, inc[1], inc[2])
-        final_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
-        assert np.isclose(final_prob_factor / initial_prob_factor, inc[3])
+        if not inc[0] is None:
+            final_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
+            try:
+                assert np.isclose(final_prob_factor / initial_prob_factor, inc[3])
+            except AssertionError as e:
+                print(final_prob_factor, initial_prob_factor, inc[3])
+                print(last_gs)
+                raise e
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
         for j in gs:
