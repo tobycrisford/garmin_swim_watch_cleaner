@@ -97,7 +97,7 @@ class Length:
             prob_weight *= 1/self.global_state['extra']
         prob_weight *= 1 / (self.all_recorded[-1] - self.all_recorded[0])**self.global_state['extra']
         
-        prob_weight *= np.prod((1 / (2*math.pi*math.e)**(self.global_state['n']/2)) * (1 / self.global_state['n']) * (self.global_state['var'])**((self.global_state['n']-1)/2))
+        prob_weight *= np.prod((1 / (2*math.pi*math.e)**(self.global_state['n']/2)) * (1 / self.global_state['n']) * (1/self.global_state['var'])**((self.global_state['n']-1)/2))
         
         prob_weight *= self.calculate_missing_weightings()
         
