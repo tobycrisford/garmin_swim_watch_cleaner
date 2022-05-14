@@ -99,7 +99,7 @@ class Length:
         
         prob_weight *= np.prod((1 / (2*math.pi*math.e)**(self.global_state['n']/2)) * (1 / self.global_state['n']) * (1/self.global_state['var'])**((self.global_state['n']-1)/2))
         
-        prob_weight *= self.calculate_missing_weightings()
+        #prob_weight *= self.calculate_missing_weightings()
         
         return prob_weight
             
@@ -168,7 +168,7 @@ class Length:
             self.global_state['S'] = potential_S[new_label,:]
             self.global_state['var'] = potential_var[new_label,:]
                     
-            return (self.next_length, self.next_length.index_start, False, prob_factor[new_label])
+            return (self.next_length, self.next_length.index_start, False, prob_factor[new_label], time_factor)
         
         return None
     
@@ -311,6 +311,7 @@ class Length:
                 else:
                     prob_factor *= self.global_state['extra'] / (self.global_state['extra'] + 1)
                 prob_factor *= 1 / (self.all_recorded[-1] - self.all_recorded[0])
+                final_return_val = 1.0
             else:
                 if self.next_length.start_moved:
                     prob_factor = 1.0
@@ -325,6 +326,7 @@ class Length:
                 else:
                     lb = self.all_recorded[self.index_stop]
                 prob_factor *= 1 / (ub - lb)
+                final_return_val = ub - lb
             
             prob_factor *= (np.sum(self.global_state['n']) + 1) / self.global_state['n'][self.next_length.length_label]
             
@@ -384,7 +386,7 @@ class Length:
                     self.index_stop = self.next_length.index_stop
                 self.next_length = self.next_length.next_length
                 
-                return (self, new_start_from, False, prob_factor)
+                return (self, new_start_from, False, prob_factor, final_return_val)
             
         if self.next_length is None:
             return (None, None, None)
@@ -467,20 +469,33 @@ def run_monte_carlo(lengths, n_start, n_checkpoints, checkpoint_size, beta, watc
 
 def global_state_testing(lengths, n, beta, watch_min):
     
+    first_length = lengths
     inc = (lengths, lengths.index_start, True)
     times_length = lengths.global_state['extra'] + lengths.global_state['recorded']
     
     last_gs = copy.deepcopy(lengths.global_state)
     for i in tqdm(range(n)):
-        initial_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
+        initial_prob_factor = first_length.calculate_probability_weight(beta, watch_min)
         inc = inc[0].random_hop(beta, watch_min, inc[1], inc[2])
         if not inc[0] is None:
-            final_prob_factor = inc[0].calculate_probability_weight(beta, watch_min)
+            final_prob_factor = first_length.calculate_probability_weight(beta, watch_min)
             try:
-                assert np.isclose(final_prob_factor / initial_prob_factor, inc[3])
+                if not np.isclose(final_prob_factor / initial_prob_factor, inc[3]):
+                    missed_change = (inc[0].global_state['missed'] + inc[0].global_state['moved_starts']) - (last_gs['missed'] + last_gs['moved_starts'])
+                    if missed_change == 1:
+                        comparison = inc[3] / inc[4]
+                        assert np.isclose(final_prob_factor / initial_prob_factor, comparison)
+                    elif missed_change == -1:
+                        comparison = inc[3] * inc[4]
+                        assert np.isclose(final_prob_factor / initial_prob_factor, comparison)
+                    else:
+                        comparison = inc[3]
+                        raise AssertionError()
+                    
             except AssertionError as e:
-                print(final_prob_factor, initial_prob_factor, inc[3])
+                print(final_prob_factor, initial_prob_factor, comparison)
                 print(last_gs)
+                print(i)
                 raise e
         gs = copy.deepcopy(lengths.global_state)
         lengths.calculate_global_state()
