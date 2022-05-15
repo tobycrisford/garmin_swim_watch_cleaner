@@ -183,40 +183,46 @@ class Length:
         potential_var[potential_var <= 1.0] = 1.0 #To regularize
         
         return potential_S, potential_var
+    
+    def get_label_change_prob_factor(self):
         
+        prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
+        potential_mean = np.copy(self.global_state['mean'])
+        potential_meansquare = np.copy(self.global_state['meansquare'])
+        if self.global_state['n'][self.length_label] > 1:
+            n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
+        else:
+            n_factor = 1
+        potential_mean[self.length_label] -= self.duration / self.global_state['n'][self.length_label]
+        potential_mean[self.length_label] *= n_factor
+        potential_meansquare[self.length_label] -= (self.duration**2) / self.global_state['n'][self.length_label]
+        potential_meansquare[self.length_label] *= n_factor
+        potential_mean[1-self.length_label] = ((potential_mean[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)) / (self.global_state['n'][1-self.length_label] + 1)
+        potential_meansquare[1-self.length_label] = ((potential_meansquare[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)**2) / (self.global_state['n'][1-self.length_label] + 1)
+        potential_n = np.copy(self.global_state['n'])
+        potential_n[self.length_label] -= 1
+        potential_n[1-self.length_label] += 1
+        potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
+                    
+        s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
+        s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
+            
+        prob_factor *= np.prod(s_prob_factors)
+            
+        if self.global_state['n'][1-self.length_label] > 0:
+            prob_factor *= (self.global_state['n'][1-self.length_label] / (1 + self.global_state['n'][1-self.length_label])) * (1 / np.sqrt(2*np.pi*np.e))
+        if self.global_state['n'][self.length_label] > 1:
+            prob_factor *= ((self.global_state['n'][self.length_label]) / (self.global_state['n'][self.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
+            
+        return prob_factor, potential_n, potential_mean, potential_meansquare, potential_S, potential_var
     
     def random_hop(self, beta, watch_min, start_from, check_length_label):
         
         #Should we change the current length label?
         if check_length_label:
-            prob_factor = (1+self.global_state['n'][1-self.length_label])/(self.global_state['n'][self.length_label])
-            potential_mean = np.copy(self.global_state['mean'])
-            potential_meansquare = np.copy(self.global_state['meansquare'])
-            if self.global_state['n'][self.length_label] > 1:
-                n_factor = self.global_state['n'][self.length_label] / (self.global_state['n'][self.length_label] - 1)
-            else:
-                n_factor = 1
-            potential_mean[self.length_label] -= self.duration / self.global_state['n'][self.length_label]
-            potential_mean[self.length_label] *= n_factor
-            potential_meansquare[self.length_label] -= (self.duration**2) / self.global_state['n'][self.length_label]
-            potential_meansquare[self.length_label] *= n_factor
-            potential_mean[1-self.length_label] = ((potential_mean[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)) / (self.global_state['n'][1-self.length_label] + 1)
-            potential_meansquare[1-self.length_label] = ((potential_meansquare[1-self.length_label] * self.global_state['n'][1-self.length_label]) + (self.duration)**2) / (self.global_state['n'][1-self.length_label] + 1)
-            potential_n = np.copy(self.global_state['n'])
-            potential_n[self.length_label] -= 1
-            potential_n[1-self.length_label] += 1
-            potential_S, potential_var = self.compute_potential_S(potential_mean, potential_meansquare, potential_n)
-                    
-            s_prob_factors = (potential_var/self.global_state['var'])**(0.5*(1-self.global_state['n']))
-            s_prob_factors *= potential_var**(-0.5*(potential_n - self.global_state['n']))
             
-            prob_factor *= np.prod(s_prob_factors)
-            
-            if self.global_state['n'][1-self.length_label] > 0:
-                prob_factor *= (self.global_state['n'][1-self.length_label] / (1 + self.global_state['n'][1-self.length_label])) * (1 / np.sqrt(2*np.pi*np.e))
-            if self.global_state['n'][self.length_label] > 1:
-                prob_factor *= ((self.global_state['n'][self.length_label]) / (self.global_state['n'][self.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
-            
+            prob_factor, potential_n, potential_mean, potential_meansquare, potential_S, potential_var = self.get_label_change_prob_factor()
+
             prob_stick = 1 / (1 + prob_factor)
             rand_number = np.random.rand()
             if rand_number > prob_stick:
@@ -302,7 +308,7 @@ class Length:
         if not (add_missing_test is None):
             return add_missing_test
         
-        #Should we merge with the next length?
+        #Should we merge with the next length (or change the next length's label)?
         if (not (self.next_length is None)):
             if self.end_recorded:
                 prob_factor = (self.global_state['missed']+self.global_state['recorded']+1+(beta-1))/(self.global_state['recorded']+(beta-1))
@@ -358,36 +364,47 @@ class Length:
             if self.global_state['n'][self.next_length.length_label] > 1:
                 prob_factor *= (self.global_state['n'][self.next_length.length_label] / (self.global_state['n'][self.next_length.length_label] - 1)) * np.sqrt(2*np.pi*np.e)
             
-            prob_stick = 1 / (1 + np.sum(prob_factor))
+            prob_factor_labchange, potential_n_labchange, potential_mean_labchange, potential_meansquare_labchange, potential_S_labchange, potential_var_labchange = self.next_length.get_label_change_prob_factor()
+            
+            prob_stick = 1 / (1 + prob_factor + prob_factor_labchange)
             rand_number = np.random.rand()
             if rand_number > prob_stick:
-                new_start_from = self.next_length.index_start + 1
-                if self.end_recorded:
-                    self.global_state['recorded'] -= 1
-                    self.global_state['extra'] += 1
-                else:
-                    if self.next_length.start_moved:
-                        self.global_state['moved_starts'] -= 1
+                if rand_number < 1 - prob_stick * prob_factor_labchange:
+                    new_start_from = self.next_length.index_start + 1
+                    if self.end_recorded:
+                        self.global_state['recorded'] -= 1
+                        self.global_state['extra'] += 1
                     else:
-                        self.global_state['missed'] -= 1
-                self.global_state['n'][self.next_length.length_label] -= 1
-                self.global_state['mean'] = potential_mean
-                self.global_state['meansquare'] = potential_meansquare
-                self.global_state['S'] = potential_S
-                self.global_state['var'] = potential_var
-                
-                self.finish_time = self.next_length.finish_time
-                self.duration = self.finish_time - self.start_time
-                self.end_recorded = self.next_length.end_recorded
-                if self.index_stop < self.index_start:
-                    self.index_start = self.next_length.index_start
-                    self.index_stop = self.next_length.index_stop
+                        if self.next_length.start_moved:
+                            self.global_state['moved_starts'] -= 1
+                        else:
+                            self.global_state['missed'] -= 1
+                    self.global_state['n'][self.next_length.length_label] -= 1
+                    self.global_state['mean'] = potential_mean
+                    self.global_state['meansquare'] = potential_meansquare
+                    self.global_state['S'] = potential_S
+                    self.global_state['var'] = potential_var
+                    
+                    self.finish_time = self.next_length.finish_time
+                    self.duration = self.finish_time - self.start_time
+                    self.end_recorded = self.next_length.end_recorded
+                    if self.index_stop < self.index_start:
+                        self.index_start = self.next_length.index_start
+                        self.index_stop = self.next_length.index_stop
+                    else:
+                        self.index_stop = self.next_length.index_stop
+                    self.next_length = self.next_length.next_length
+                    
+                    return (self, new_start_from, False, prob_factor, final_return_val)
                 else:
-                    self.index_stop = self.next_length.index_stop
-                self.next_length = self.next_length.next_length
+                    self.next_length.length_label = 1 - self.next_length.length_label
+                    self.global_state['n'] = potential_n_labchange
+                    self.global_state['mean'] = potential_mean_labchange
+                    self.global_state['meansquare'] = potential_meansquare_labchange
+                    self.global_state['S'] = potential_S_labchange
+                    self.global_state['var'] = potential_var_labchange
+                    return (self.next_length, self.next_length.index_start, False, prob_factor_labchange)
                 
-                return (self, new_start_from, False, prob_factor, final_return_val)
-            
         if self.next_length is None:
             return (None, None, None)
         else:
